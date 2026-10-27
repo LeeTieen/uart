@@ -13,15 +13,6 @@
 
 This document defines required behavior independently of the RTL implementation.
 
-## Revision History
-
-| Version | Date | Description |
-|---|---|---|
-| 1.0 | 2026-10-23 | Initial UART functional baseline |
-| 1.1 | 2026-10-27 | Project Markdown specification; testcase inventory deferred |
-| 1.2 | 2026-10-28 | Condensed structure; UVM verification required; functional decisions retained |
-| 1.3 | 2026-10-28 | Set functional, statement and branch coverage targets to >= 90% each |
-
 ## 1. Purpose and Scope
 
 Implement independent UART TX and RX paths with one synchronous FIFO per path.
