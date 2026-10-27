@@ -1,0 +1,16 @@
+# Generated Questa/ModelSim files; sim/ is recreated by the Makefile
+/sim/
+**/work/
+modelsim.ini
+transcript
+*.wlf
+*.vcd
+*.fst
+*.ucdb
+*.log
+
+# Editor backups and temporary files
+*.bak
+*.tmp
+Thumbs.db
+.DS_Store
