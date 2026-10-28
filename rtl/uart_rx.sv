@@ -2,6 +2,7 @@ module uart_rx #(parameter int DATA_WIDTH = 8)(
     input logic                     clk_i,
     input logic                     uartrx_i,
     input logic                     baudtick_i,
+    input logic                     _rst_i,
 
     output logic [DATA_WIDTH-1:0]   uartrx_o,
     output logic                    rxdone_o
@@ -17,7 +18,7 @@ module uart_rx #(parameter int DATA_WIDTH = 8)(
 
     logic [3:0]             s_count, next_s_count; //sampling 16x
     logic [DATA_BIT:0]      b_count, next_b_count;
-    logic [DATA_WIDTH-1:0]  b, next_b, rx_pre;
+    logic [DATA_WIDTH-1:0]  b, b_test, next_b, rx_pre;
     logic [DATA_WIDTH-1:0]  meta, rx;
     logic [1:0]             state, next_state;
     logic                   next_rx_done;
@@ -60,15 +61,19 @@ module uart_rx #(parameter int DATA_WIDTH = 8)(
               if (baudtick_i == 1) begin
                 if (s_count == 15) begin
                   next_s_count = 0;
-                  next_b       = {rx, b[DATA_WIDTH:1]};
+                  next_b       = {rx, b[DATA_WIDTH-1:1]};
                   if (b_count == DATA_WIDTH-1) next_state = STOP;
                   else begin
                     next_state = DATA;
                     next_b_count = b_count + 1;
                   end
                 end
-                else next_state = DATA;
+                else begin
+                  next_s_count = s_count + 1;
+                  next_state = DATA;
+                end
               end
+            else next_state = DATA;
             end
 
           STOP:
@@ -78,8 +83,12 @@ module uart_rx #(parameter int DATA_WIDTH = 8)(
                   next_rx_done = 1;
                   next_state = IDLE;
                 end
-                else next_state = STOP;
+                else begin
+                  next_s_count = s_count + 1;
+                  next_state = STOP;
+                end
               end
+              else next_state = STOP;
             end
 
           default: next_state = IDLE;
@@ -95,12 +104,22 @@ module uart_rx #(parameter int DATA_WIDTH = 8)(
 
     always_ff @(posedge clk_i)
       begin: proc_output
-        s_count         <= next_s_count;
-        rxdone_o  <= next_rx_done;
-        state           <= next_state;
-        b               <= next_b;
-        rx_pre          <= uartrx_o;
-        b_count         <= next_b_count;
+        if(_rst_i == 0) begin
+          s_count         <= 0;
+          rxdone_o        <= 0;
+          state           <= IDLE;
+          b               <= 0;
+          rx_pre          <= 0;
+          b_count         <= 0;
+        end
+        else begin
+          s_count         <= next_s_count;
+          rxdone_o        <= next_rx_done;
+          state           <= next_state;
+          b               <= next_b;
+          rx_pre          <= uartrx_o;
+          b_count         <= next_b_count;
+        end
       end
 endmodule
 
