@@ -18,6 +18,7 @@ class tb_mon extends uvm_monitor;
         uvm_phase phase
     );
 
+        super.build_phase(phase);
         if (!uvm_config_db#(
             virtual uart_inf #(DATA_WIDTH)
         )::get(
@@ -34,10 +35,8 @@ class tb_mon extends uvm_monitor;
         end
     endfunction
 
-    task run_phase(
-        uvm_phase phase
-    );
-        super.build_phase(phase);
+    task monitor_host();
+        
         tb_seq_item seq;
         forever begin
             @(posedge vif.clk_i)
@@ -63,7 +62,50 @@ class tb_mon extends uvm_monitor;
                 seq.uarttx_o_after      = vif.uarttx_o;
                 seq.txfull_o_after      = vif.txfull_o;
 
+
                 ap.write(seq);
         end
+    endtask
+
+    task receive_uart_byte(
+        output logic [DATA_WIDTH-1:0] data_out
+    );
+        
+        @(negedge vif.uarttx_o);
+
+        #(1.5 * 104us);
+        for (int i = 0; i < DATA_WIDTH; i++) begin
+            data_out[i] = vif.uarttx_o;
+            #104us;
+        end
+
+        if (vif.uarttx_o !== 1'b1)
+            `uvm_error(
+                "[MON]",
+                "TX stop bit should be 1"
+                )
+  endtask
+
+  task monitor_tx();
+    logic [DATA_WIDTH-1:0] data;
+
+    forever begin
+        receive_uart_byte(data);
+
+        `uvm_info(
+            "[MON]",
+            $sformatf(
+                "TX receive byte: %02h", data
+                UVM_NONE
+            )
+        )
+    end
+  endtask
+
+  task run_phase(uvm_phase phase);
+    fork
+        monitor_host();
+        monitor_tx();
+    join
     endtask
 endclass
