@@ -5,19 +5,27 @@
 | Field | Value |
 |---|---|
 | Document ID | UART-SPEC-001 |
-| Version | 1.3 |
-| Date | 2026-10-28 |
+| Version | 1.4 |
+| Date | 2026-10-29 |
 | DUT | `uart` |
 | Verification methodology | UVM / SystemVerilog |
 | Status | Functional baseline; coverage targets agreed |
 
 This document defines required behavior independently of the RTL implementation.
 
+## Revision History
+
+| Version | Date | Description |
+|---|---|---|
+| 1.4 | 2026-10-29 | Adopt asynchronous FIFO read outputs, zero output without a valid read request, and corresponding sampling rules |
+
 ## 1. Purpose and Scope
 
 Implement independent UART TX and RX paths with one synchronous FIFO per path.
 Support 8N1 frames, LSB first, at nominal 9600 baud with a 12 MHz system clock.
-Reuse the registered-read `fifo_sync` contract with 8 entries per FIFO.
+Use two single-clock `fifo_sync` instances with asynchronous (combinational)
+read outputs and 8 entries per FIFO. Writes, pointers and occupancy update on
+the rising clock edge.
 
 Parity, runtime configuration, bus interfaces, interrupts, flow control, error
 outputs, malformed-frame handling and quantified jitter/baud-mismatch tolerance
@@ -55,7 +63,7 @@ Baseline values below do not require arbitrary parameter support or new ports.
 | `rdrx_en_i` | input | 1 | Host RX FIFO read request |
 | `uarttx_i` | input | 8 | Host TX write data |
 | `wrtx_en_i` | input | 1 | Host TX FIFO write request |
-| `uartrx_o` | output | 8 | Registered RX FIFO read data |
+| `uartrx_o` | output | 8 | Combinational RX FIFO read data; oldest byte when `rdrx_en_i && rx_notem_o`, otherwise zero |
 | `rx_notem_o` | output | 1 | RX FIFO occupancy greater than zero |
 | `rxfull_o` | output | 1 | RX FIFO occupancy equals 8 |
 | `uarttx_o` | output | 1 | Serial output; idle high |
@@ -63,14 +71,20 @@ Baseline values below do not require arbitrary parameter support or new ports.
 
 Flags represent stored FIFO bytes, excluding active or staged serial data.
 There are no external busy, read-valid or error outputs.
+Each internal FIFO exposes `not_empty=1` when its occupancy is greater than zero;
+the RX instance connects this flag to `rx_notem_o`.
 
 ## 5. Clocking and Sampling Rules
 
-- All state updates occur on `posedge clk_i`; baud enable is not a separate clock.
+- All stored-state updates occur on `posedge clk_i`; FIFO read outputs are
+  combinational. Baud enable is not a separate clock.
 - Parallel inputs meet synchronous timing. Synchronize `uartrx_i` before RX
   detection and sampling; a two-register synchronizer is recommended.
 - Acceptance uses inputs and flags immediately before the edge. Check registered
   outputs after nonblocking assignments settle. A held request is evaluated each edge.
+- Sample accepted FIFO read data before pointer updates at the rising edge.
+  Check reset results and updated status after nonblocking assignments and
+  resulting combinational logic settle.
 - Consume a one-clock baud enable every 78 edges, first on the 78th non-reset
   edge. A combinational tick may rise in the preceding cycle.
 - Each TX symbol lasts 16 tick intervals. A complete frame lasts 1.040 ms,
@@ -116,13 +130,20 @@ unspecified and excluded from baseline sign-off.
 ## 9. Read Operation
 
 Host RX acceptance: `_rst_i && rdrx_en_i && rx_notempty_before`.
-Return the oldest byte on registered `uartrx_o` after the accepted edge.
-An empty read removes nothing and sets the output to zero. Without a read,
-the output holds unless reset applies.
+Here `rx_notempty_before` is the pre-edge value of `rx_notem_o`.
 
-TX dequeues only available FIFO data and must obtain the registered read result
-before serialization; another register cannot capture the newly updated FIFO
-output at the same edge. If retained, TX-done is a one-clock frame-completion
+When `rdrx_en_i && rx_notem_o`, `uartrx_o` presents the oldest stored byte
+combinationally before the read edge. An accepted read removes that byte at the
+rising edge. Afterwards, the output reflects the updated FIFO state and read
+request: the next oldest byte if both remain valid, otherwise zero.
+
+When no read is requested or the FIFO is empty, `uartrx_o=0`; it does not retain
+the previous read result. An empty read removes no entry. Reset has priority
+over accepting transfers, as defined in Section 6.
+
+TX dequeues only available FIFO data. It may capture valid combinational FIFO
+read data at the same edge that accepts the dequeue, provided the data is stable
+before that edge. If retained, TX-done is a one-clock frame-completion
 pulse, low during ordinary idle, and distinct from FIFO dequeue control.
 
 ## 10. Simultaneous Read and Write
@@ -134,10 +155,11 @@ otherwise evaluate both requests using that FIFO's pre-edge state:
 |---|---|
 | Neither empty nor full | Both accepted; oldest byte returned; occupancy unchanged |
 | Full | Read accepted; write rejected; occupancy decreases by one |
-| Empty | Write accepted; read rejected; read output zero; occupancy increases by one |
+| Empty | Write accepted; read rejected; pre-edge read output zero; occupancy increases by one |
 
 A simultaneous read does not rescue a full write. On an empty RX collision,
-the newly enqueued byte is available only for a later host read.
+the newly enqueued byte may become visible after the write if the read request
+remains asserted, but it is removed only by a later accepted host read.
 
 ## 12. Verification Architecture Requirements
 
@@ -145,14 +167,16 @@ Use UVM with host and serial agents (sequencer, driver, monitor), a scoreboard
 and a coverage subscriber. UVM sequences generate stimulus; monitors publish
 observed transactions through analysis ports.
 
-Monitor pre-edge acceptance and settled outputs. Serial stimulus and decoding
+Monitor pre-edge acceptance and FIFO read data, and post-update reset results
+and status. Serial stimulus and decoding
 must be independent of the DUT and support back-to-back frames. Exact FIFO
 transfer checks may observe FIFO ports, never internal memory, pointers or FSMs.
 
 Require reset/timing/interface assertions and a watchdog per test; watchdog
 limits are harness settings. Include simulation wire loopback and buffered echo
-alongside independent TX/RX checks. Echo waits for registered RX data, holds
-pending bytes while TX is full, and discards them on reset.
+alongside independent TX/RX checks. Echo captures valid combinational RX data
+at an accepted read edge, holds pending bytes while TX is full, and discards
+them on reset.
 
 ## 13. Functional Coverage Requirements
 
@@ -177,8 +201,10 @@ exclusions; an aggregate percentage does not waive required functional checks.
 - TX: queue accepted host writes; compare independent decoded TX bytes for
   data, ordering, loss, duplication and framing. Rejected writes add no entry.
 - RX: derive expected bytes from valid serial traffic; model accepted FIFO
-  enqueues and overflow discards; compare accepted registered host reads in order.
-- Check empty reads return zero and idle read output holds. Rejected reads do
+  enqueues and overflow discards; compare accepted host read data sampled before
+  pointer updates, in order.
+- Check read output is zero when the FIFO is empty or no read is requested.
+  Rejected reads do
   not pop the model; rejected writes do not change its contents.
 - Check FIFO flags against occupancy using observed FIFO port transfers:
   `count_after = count_before + write_accept - read_accept`.
