@@ -5,8 +5,8 @@
 | Field | Value |
 |---|---|
 | Document ID | UART-SPEC-001 |
-| Version | 1.4 |
-| Date | 2026-10-29 |
+| Version | 1.5 |
+| Date | 2026-10-31 |
 | DUT | `uart` |
 | Verification methodology | UVM / SystemVerilog |
 | Status | Functional baseline; coverage targets agreed |
@@ -17,6 +17,7 @@ This document defines required behavior independently of the RTL implementation.
 
 | Version | Date | Description |
 |---|---|---|
+| 1.5 | 2026-10-31 | Define functional verification scope for data integrity, FIFO boundaries, reset, consecutive frames and concurrent TX/RX |
 | 1.4 | 2026-10-29 | Adopt asynchronous FIFO read outputs, zero output without a valid read request, and corresponding sampling rules |
 
 ## 1. Purpose and Scope
@@ -172,7 +173,13 @@ and status. Serial stimulus and decoding
 must be independent of the DUT and support back-to-back frames. Exact FIFO
 transfer checks may observe FIFO ports, never internal memory, pointers or FSMs.
 
-Require reset/timing/interface assertions and a watchdog per test; watchdog
+Verification checks correct byte values and ordering, loss and duplication,
+FIFO full-write rejection and empty-read rejection, reset clearing and frame
+abortion, consecutive frames, and concurrent TX/RX. Dedicated timing tests and
+assertions measuring baud-tick intervals, bit/frame durations or serial start
+phase variation are outside the verification scope.
+
+Require reset and interface assertions and a watchdog per test; watchdog
 limits are harness settings. Include simulation wire loopback and buffered echo
 alongside independent TX/RX checks. Echo captures valid combinational RX data
 at an accepted read edge, holds pending bytes while TX is full, and discards
@@ -189,7 +196,7 @@ These are verification targets, not claims of implemented tests or coverage bins
 | FIFO boundaries | Empty/full hits and transitions; accepted/rejected operations |
 | Simultaneous operations | Read/write at normal, full and empty states of each FIFO |
 | Reset | Idle, start, data, stop and queued-data conditions |
-| RX timing | Back-to-back frames, start-phase variation, both peer timing profiles |
+| Consecutive frames | Valid back-to-back frames received without data loss or duplication |
 | Integration | Wire loopback and buffered echo |
 
 Exclude malformed-frame behavior and unassigned tolerance limits. Functional,
