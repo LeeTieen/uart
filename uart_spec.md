@@ -5,20 +5,11 @@
 | Field | Value |
 |---|---|
 | Document ID | UART-SPEC-001 |
-| Version | 1.5 |
-| Date | 2026-10-31 |
 | DUT | `uart` |
 | Verification methodology | UVM / SystemVerilog |
 | Status | Functional baseline; coverage targets agreed |
 
 This document defines required behavior independently of the RTL implementation.
-
-## Revision History
-
-| Version | Date | Description |
-|---|---|---|
-| 1.5 | 2026-10-31 | Define functional verification scope for data integrity, FIFO boundaries, reset, consecutive frames and concurrent TX/RX |
-| 1.4 | 2026-10-29 | Adopt asynchronous FIFO read outputs, zero output without a valid read request, and corresponding sampling rules |
 
 ## 1. Purpose and Scope
 
@@ -32,13 +23,7 @@ Parity, runtime configuration, bus interfaces, interrupts, flow control, error
 outputs, malformed-frame handling and quantified jitter/baud-mismatch tolerance
 are outside scope. Internal FSM, storage and staging implementation are unrestricted.
 
-## 2. Functional Block Diagram
-
-TX path: host write interface -> TX FIFO -> transmitter -> serial TX output.
-RX path: serial RX input -> synchronizer -> receiver -> RX FIFO -> host read interface.
-A baud generator supplies a shared clock enable; all blocks use `clk_i`.
-
-## 3. Parameters
+## 2. Parameters
 
 Baseline values below do not require arbitrary parameter support or new ports.
 
@@ -54,7 +39,7 @@ Baseline values below do not require arbitrary parameter support or new ports.
 | Actual TX baud | 9615.384615 bit/s | 12 MHz / (78 x 16); error approximately +0.160256% |
 | TX bit duration | 104 us | Exactly 1248 system-clock cycles |
 
-## 4. Port Specification
+## 3. Port Specification
 
 | Signal | Direction | Width | Description |
 |---|---|---:|---|
@@ -75,28 +60,17 @@ There are no external busy, read-valid or error outputs.
 Each internal FIFO exposes `not_empty=1` when its occupancy is greater than zero;
 the RX instance connects this flag to `rx_notem_o`.
 
-## 5. Clocking and Sampling Rules
+## 4. Clocking and Sampling Rules
 
-- All stored-state updates occur on `posedge clk_i`; FIFO read outputs are
-  combinational. Baud enable is not a separate clock.
-- Parallel inputs meet synchronous timing. Synchronize `uartrx_i` before RX
-  detection and sampling; a two-register synchronizer is recommended.
-- Acceptance uses inputs and flags immediately before the edge. Check registered
-  outputs after nonblocking assignments settle. A held request is evaluated each edge.
-- Sample accepted FIFO read data before pointer updates at the rising edge.
-  Check reset results and updated status after nonblocking assignments and
-  resulting combinational logic settle.
-- Consume a one-clock baud enable every 78 edges, first on the 78th non-reset
-  edge. A combinational tick may rise in the preceding cycle.
-- Each TX symbol lasts 16 tick intervals. A complete frame lasts 1.040 ms,
-  excluding additional idle. A full high stop interval precedes the next start.
-- RX targets bit centers with 16x sampling: approximately 8 ticks to start center,
-  then 16 ticks between sample centers, accounting for synchronization delay.
-- RX accepts valid back-to-back frames with no extra idle at nominal-9600 and
-  matched-divider peer timing, across serial start phases. Maximum TX start
-  latency, inter-frame idle and wider timing tolerance remain unspecified.
+- All UART blocks use `clk_i`; stored state updates on the rising edge.
+- Baud tick is a clock enable generated every 78 system-clock cycles.
+  Each UART bit spans 16 tick intervals.
+- Synchronize the serial RX input before processing; RX samples at bit centers.
+- FIFO reads are combinational; writes and pointer updates occur on the rising edge.
+- In the testbench, sample FIFO read data and transfer acceptance before state
+  updates; check reset results and status flags after updates settle.
 
-## 6. Reset Behavior
+## 5. Reset Behavior
 
 When `_rst_i=0` at a rising edge, reset takes priority over all transfers.
 
@@ -115,7 +89,7 @@ Logical invalidation is sufficient; memory clearing is unnecessary. Pre-reset
 data must not reappear. Restore serial idle before a fresh frame after reset;
 recovery of a frame overlapping reset is unspecified.
 
-## 8. Write Operation
+## 6. Write Operation
 
 Host TX acceptance: `_rst_i && wrtx_en_i && !txfull_before`.
 Append accepted data to the TX FIFO. Reject full writes without overwriting data.
@@ -128,7 +102,7 @@ that edge; otherwise discard the new byte and preserve older data. If retained,
 RX-done is a one-clock completion event. Malformed-input delivery/rejection is
 unspecified and excluded from baseline sign-off.
 
-## 9. Read Operation
+## 7. Read Operation
 
 Host RX acceptance: `_rst_i && rdrx_en_i && rx_notempty_before`.
 Here `rx_notempty_before` is the pre-edge value of `rx_notem_o`.
@@ -140,14 +114,14 @@ request: the next oldest byte if both remain valid, otherwise zero.
 
 When no read is requested or the FIFO is empty, `uartrx_o=0`; it does not retain
 the previous read result. An empty read removes no entry. Reset has priority
-over accepting transfers, as defined in Section 6.
+over accepting transfers, as defined in Section 5.
 
 TX dequeues only available FIFO data. It may capture valid combinational FIFO
 read data at the same edge that accepts the dequeue, provided the data is stable
 before that edge. If retained, TX-done is a one-clock frame-completion
 pulse, low during ordinary idle, and distinct from FIFO dequeue control.
 
-## 10. Simultaneous Read and Write
+## 8. Simultaneous Read and Write
 
 TX and RX operate independently and concurrently. For either FIFO, reset wins;
 otherwise evaluate both requests using that FIFO's pre-edge state:
@@ -162,7 +136,7 @@ A simultaneous read does not rescue a full write. On an empty RX collision,
 the newly enqueued byte may become visible after the write if the read request
 remains asserted, but it is removed only by a later accepted host read.
 
-## 12. Verification Architecture Requirements
+## 9. Verification Architecture Requirements
 
 Use UVM with host and serial agents (sequencer, driver, monitor), a scoreboard
 and a coverage subscriber. UVM sequences generate stimulus; monitors publish
@@ -185,7 +159,7 @@ alongside independent TX/RX checks. Echo captures valid combinational RX data
 at an accepted read edge, holds pending bytes while TX is full, and discards
 them on reset.
 
-## 13. Functional Coverage Requirements
+## 10. Functional Coverage Requirements
 
 These are verification targets, not claims of implemented tests or coverage bins.
 
@@ -203,7 +177,7 @@ Exclude malformed-frame behavior and unassigned tolerance limits. Functional,
 statement and branch coverage must each reach >= 90%. Review reports and justify
 exclusions; an aggregate percentage does not waive required functional checks.
 
-## 14. Scoreboard Requirements
+## 11. Scoreboard Requirements
 
 - TX: queue accepted host writes; compare independent decoded TX bytes for
   data, ordering, loss, duplication and framing. Rejected writes add no entry.
@@ -219,7 +193,7 @@ exclusions; an aggregate percentage does not waive required functional checks.
 - On reset, clear models and cancel comparisons for aborted data. Expected
   values must not come from DUT shift registers or memory.
 
-## 15. Definition of Done
+## 12. Definition of Done
 
 | Criterion | Requirement |
 |---|---|
@@ -230,6 +204,6 @@ exclusions; an aggregate percentage does not waive required functional checks.
 | Statement coverage | >= 90%; report reviewed |
 | Branch coverage | >= 90%; report reviewed |
 | Traceability | Each functional requirement mapped to a test, assertion or inspection |
-| Verification report | Record revision, simulator, tests, seeds, results and justified exclusions |
+| Verification report | Record simulator, tests, seeds, results and justified exclusions |
 
 Testcase IDs and the detailed testcase inventory will be added when implemented.
