@@ -16,7 +16,7 @@ class tc_tx_one_seq extends tb_seq;
     endtask
 endclass
 
-class tc_tx_one extends tb_seq;
+class tc_tx_one extends tb_test;
     `uvm_component_utils(tc_tx_one)
 
     function new(
@@ -30,7 +30,7 @@ class tc_tx_one extends tb_seq;
         uvm_phase phase
     );
         tb_seq::type_id::set_type_override(
-            tc_tx_one::get_type()
+            tc_tx_one_seq::get_type()
         );
         super.build_phase(phase);
     endfunction

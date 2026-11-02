@@ -38,10 +38,19 @@ module uart_tx #(
             case(state)
                 IDLE: begin
                     next_tx         = 1;
-                    next_state      = (txstart_i == 0) ? IDLE : START;
                     next_s_count    = 0;
-                    next_b          = uarttx_i;
-                    next_txdone     = 1;
+
+                    if (txstart_i) begin
+                        if (txdone_o) begin
+                            next_b          = uarttx_i;
+                            next_txdone     = 0;
+                            next_state      = START;
+                        end
+                    end
+                    else begin
+                        next_txdone = 1;
+                        next_state  = IDLE; 
+                    end
                 end
 
                 START: begin

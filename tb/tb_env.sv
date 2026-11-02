@@ -31,6 +31,7 @@ class tb_env extends uvm_env;
 
         super.connect_phase(phase);
 
+        drv.rx_ap.connect(sco.analysis_export);
         drv.seq_item_port.connect(sqr.seq_item_export);
         mon.ap.connect(sco.analysis_export);
     endfunction

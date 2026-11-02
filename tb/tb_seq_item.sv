@@ -25,4 +25,11 @@ class tb_seq_item extends uvm_sequence_item;
     bit                    rxfull_o_after;
     bit                    uarttx_o_after; 
     bit                    txfull_o_after;
+
+    bit                    tx_byte_valid = 0;
+    logic [DATA_WIDTH-1:0] tx_byte;
+
+    bit                     send_rx = 0;
+    logic [DATA_WIDTH-1:0]  rx_data;
+
 endclass

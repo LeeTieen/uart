@@ -8,6 +8,7 @@ package tb_pkg;
     parameter int DEPTH      = 8;
     
     `include "tb_seq_item.sv"
+    `include "tb_cov.sv"
     `include "tb_sequencer.sv"
     `include "tb_seq.sv"
     `include "tb_drv.sv"

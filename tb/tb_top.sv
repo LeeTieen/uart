@@ -2,6 +2,7 @@
 module tb_top;
    import uvm_pkg::*;
    import tb_pkg::*;
+   import tc_pkg::*;
 
    localparam realtime CLK_PERIOD = 1s/12_000_000.0;
 
@@ -24,9 +25,9 @@ module tb_top;
         .txfull_o   (inf.txfull_o)
    );
 
-   initial inf.clk_i = 0;
+    initial inf.clk_i = 0;
 
-   always #(CLK_PERIOD / 2.0)
+    always #(CLK_PERIOD / 2.0)
         inf.clk_i = ~inf.clk_i;
 
     initial begin

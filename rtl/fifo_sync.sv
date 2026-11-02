@@ -9,7 +9,7 @@ module fifo_sync #(
 
     output logic [DATA_WIDTH-1:0] dout,
     output logic full,
-    output logic empty
+    output logic not_empty
 );
 
     localparam int PTR_WIDTH = (DEPTH <= 1) ? 1 : $clog2(DEPTH);
@@ -22,10 +22,12 @@ module fifo_sync #(
     logic write_ok;
     logic read_ok;
 
-    assign full     = (count == DEPTH);
-    assign empty    = (count == 0);
-    assign write_ok = ((full != 1) && (wr_en == 1));
-    assign read_ok  = ((empty != 1) && (rd_en == 1));
+    assign full         = (count == DEPTH);
+    assign not_empty    = (count != 0);
+    assign write_ok     = ((full != 1) && (wr_en == 1));
+    assign read_ok      = ((not_empty == 1) && (rd_en == 1));
+    
+    assign dout = (read_ok) ? mem[rd_ptr] : 0; //Read asynchronous
 
     function automatic logic [PTR_WIDTH-1:0] next_ptr(
         logic [PTR_WIDTH-1:0] ptr
@@ -41,15 +43,15 @@ module fifo_sync #(
             count   <= '0;
             wr_ptr  <= '0;
             rd_ptr  <= '0;
-            dout    <= '0;
+            //dout    <= '0;
         end
 
         else begin
             case({read_ok,write_ok})
 
                 2'b00: begin
-                    if (rd_en && empty)
-                        dout <= '0;
+                    // if (rd_en && !not_empty)
+                    //     //dout <= '0;
                 end
 
                 2'b01: begin
@@ -58,19 +60,19 @@ module fifo_sync #(
                     count       <= count + 1'b1;
 
                     // Special case: read and write when FIFO is empty
-                    if (rd_en && empty)
-                        dout <= '0;
+                    //if (rd_en && !not_empty)
+                        //dout <= '0;
                 end
 
                 2'b10: begin
-                    dout        <= mem[rd_ptr];
+                    //dout        <= mem[rd_ptr];
                     rd_ptr      <= next_ptr(rd_ptr);
                     count       <= count - 1'b1;
                 end
 
                 2'b11: begin
                     mem[wr_ptr] <= din;
-                    dout        <= mem[rd_ptr];
+                    //dout        <= mem[rd_ptr];
                     wr_ptr      <= next_ptr(wr_ptr);
                     rd_ptr      <= next_ptr(rd_ptr);
                 end

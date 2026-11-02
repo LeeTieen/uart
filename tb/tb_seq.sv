@@ -32,8 +32,33 @@ class tb_seq extends uvm_sequence #(tb_seq_item);
         finish_item(seq);
     endtask
 
+    task send_rx_byte(
+        input logic [DATA_WIDTH-1:0] data
+    );
+        tb_seq_item seq;
+
+        seq = tb_seq_item::type_id::create("rx_seq");
+
+        start_item(seq);
+
+        seq._rst_i    = 1;
+        seq.uartrx_i  = 1;
+        seq.rdrx_en_i = 0;
+        seq.wrtx_en_i = 0;
+
+        seq.send_rx = 1;
+        seq.rx_data = data;
+
+        finish_item(seq);
+    endtask
+
     task body();
         run(0, 1, 0, '0, 0);
         run(1, 1, 0, '0, 0);
+
+        for (int i = 0; i < DEPTH + 4; i++) begin
+            run(1, 1, 0, i, 1);
+            run(1, 1, 0, '0, 0); 
+        end
     endtask
 endclass

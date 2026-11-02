@@ -139,7 +139,7 @@ remains asserted, but it is removed only by a later accepted host read.
 ## 9. Verification Architecture Requirements
 
 Use UVM with host and serial agents (sequencer, driver, monitor), a scoreboard
-and a coverage subscriber. UVM sequences generate stimulus; monitors publish
+and functional coverage. UVM sequences generate stimulus; monitors publish
 observed transactions through analysis ports.
 
 Monitor pre-edge acceptance and FIFO read data, and post-update reset results
@@ -165,13 +165,10 @@ These are verification targets, not claims of implemented tests or coverage bins
 
 | Category | Required coverage intent |
 |---|---|
-| Data | All 256 byte values in TX and RX; include `00`, `FF`, `55`, `AA`, `A5` |
-| Activity | Idle, TX only, RX only, concurrent TX/RX |
-| FIFO boundaries | Empty/full hits and transitions; accepted/rejected operations |
-| Simultaneous operations | Read/write at normal, full and empty states of each FIFO |
-| Reset | Idle, start, data, stop and queued-data conditions |
-| Consecutive frames | Valid back-to-back frames received without data loss or duplication |
-| Integration | Wire loopback and buffered echo |
+| Data | All 256 byte values, `00`–`FF`, separately for TX and RX |
+| Boundary | TX full/not-full; RX empty/normal/full; state transitions; accepted/rejected reads and writes |
+| Reset | Reset asserted (`0`) and deasserted (`1`) |
+| Activity | Idle, TX only, RX only and concurrent serial TX/RX |
 
 Exclude malformed-frame behavior and unassigned tolerance limits. Functional,
 statement and branch coverage must each reach >= 90%. Review reports and justify

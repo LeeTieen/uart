@@ -16,57 +16,65 @@ module uart #(parameter int DATA_WIDTH=8)
 
   logic                     tick;
   logic [DATA_WIDTH-1:0]    uartrx_ff, uarttx_ff;
-  logic                     ftx_notempty;
+  logic                     fftx_notempty;
   logic                     txdone, txstart; 
   logic                     rxdone;
 
   
-  uart_baud_gen ubg
+  uart_baud_gen u_bg
                 (
                   .clk_i       (clk_i),
                   ._rst_i      (_rst_i),
                   .tick_o      (tick)
                 );
-  uartrx urx
+  uart_rx #(.DATA_WIDTH(DATA_WIDTH))u_rx
          (
            .clk_i       (clk_i),
            .uartrx_i    (uartrx_i),
            .baudtick_i  (tick),
            .uartrx_o    (uartrx_ff),
-           .rxdone_o    (rxdone)
+           .rxdone_o    (rxdone),
+           ._rst_i      (_rst_i)
          );
 
-  fifo_sync frx
+  fifo_sync #(
+    .DATA_WIDTH(DATA_WIDTH),
+    .DEPTH(8)
+  )ff_rx
        (
-         .clk_i       (clk_i),
-         ._rst_i      (_rst_i),
-         .wrdata_i    (uartrx_ff),
-         .rd_i        (rdrx_en_i),
-         .wr_i        (rxdone),
-         .notempty_o  (rx_notem_o),
-         .full_o      (rxfull_o),
-         .rddata_o    (uartrx_o)
+         .clk           (clk_i),
+         .rst_n         (_rst_i),
+         .din           (uartrx_ff),
+         .rd_en         (rdrx_en_i),
+         .wr_en         (rxdone),
+         .not_empty     (rx_notem_o),
+         .full          (rxfull_o),
+         .dout          (uartrx_o)
        );
-  uarttx utx
+  uart_tx #(.DATA_WIDTH(DATA_WIDTH))u_tx
          (
            .clk_i       (clk_i),
            .uarttx_i    (uarttx_ff),
            .baudtick_i  (tick), 
-           .txstart_i   (ftx_notempty),  
+           .txstart_i   (fftx_notempty),  
            .uarttx_o    (uarttx_o), 
-           .txdone_o    (txdone)
+           .txdone_o    (txdone),
+           ._rst_i      (_rst_i)
          );
 
-  fifo_sync ftx
+  fifo_sync #(
+    .DATA_WIDTH(DATA_WIDTH),
+    .DEPTH(8)
+  )ff_tx
        (
-         .clk_i       (clk_i),
-         ._rst_i      (_rst_i),
-         .wrdata_i    (uarttx_i),
-         .rd_i        (txdone),
-         .wr_i        (wrtx_en_i),
-         .notempty_o  (ftx_notempty),
-         .full_o      (txfull_o),
-         .rddata_o    (uarttx_ff)
+         .clk           (clk_i),
+         .rst_n         (_rst_i),
+         .din           (uarttx_i),
+         .rd_en         (txdone),
+         .wr_en         (wrtx_en_i),
+         .not_empty     (fftx_notempty),
+         .full          (txfull_o),
+         .dout          (uarttx_ff)
        );
 
 

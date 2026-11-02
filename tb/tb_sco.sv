@@ -167,14 +167,16 @@ class tb_sco extends uvm_scoreboard;
             end
         end
 
-        else if (seq.rdrx_en_i) begin
+        else begin
             assert (seq.uartrx_o === '0)
             else begin
                 `uvm_error(
                     "SCO",
                     $sformatf(
-                        "READ REJECTED: UART empty, dout = %h",
-                        seq.uartrx_o
+                        "RX OUTPUT FAIL: expected=00, actual=%h, rd_en=%b, not_empty=%b",
+                        seq.uartrx_o,
+                        seq.rdrx_en_i,
+                        seq.rx_notem_o
                     )
                 )
                 error_count++;
@@ -217,7 +219,7 @@ class tb_sco extends uvm_scoreboard;
         else begin
             `uvm_info(
                 "SCO",
-                "TX expedted queue is empty",
+                "TX expected queue is empty",
                 UVM_NONE
             )
         end
@@ -237,22 +239,35 @@ class tb_sco extends uvm_scoreboard;
     function void report_phase(
         uvm_phase phase
     );
+        uvm_report_server report_server;
+        int uvm_errors;
+        int uvm_fatals;
+
         super.report_phase(phase);
 
-        if(error_count == 0) begin
+        report_server = uvm_report_server::get_server();
+
+        uvm_errors = report_server.get_severity_count(UVM_ERROR);
+        uvm_fatals = report_server.get_severity_count(UVM_FATAL);
+
+        if ((error_count == 0) &&
+            (uvm_errors == 0) &&
+            (uvm_fatals == 0)) begin
+
             `uvm_info(
                 "SCO",
                 "TEST RESULT: PASS",
                 UVM_NONE
             )
         end
-        
         else begin
             `uvm_error(
                 "SCO",
                 $sformatf(
-                    "TEST RESULT: FAIL - %0d error(s)",
-                    error_count
+                    "TEST RESULT: FAIL - scoreboard_errors=%0d, UVM_ERROR=%0d, UVM_FATAL=%0d",
+                    error_count,
+                    uvm_errors,
+                    uvm_fatals
                 )
             )
         end

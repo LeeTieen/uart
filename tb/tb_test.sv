@@ -29,6 +29,20 @@ class tb_test extends uvm_test;
         seq = tb_seq::type_id::create("seq");
         seq.start(env.sqr);
 
+        fork
+            begin
+                wait (env.sco.tx_pending == 0);
+                #1100us;
+            end
+
+            begin
+                #12ms;
+                `uvm_fatal("TX_TIMEOUT", "Timeout waiting for TX results")
+            end
+        join_any
+
+        disable fork;
+
         phase.drop_objection(this);
     endtask
 endclass
